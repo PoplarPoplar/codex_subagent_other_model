@@ -1,36 +1,87 @@
-# Codex 执行提示词：在 Linux Codex CLI 中安装火山方舟全局双子 Agent
+# Codex 执行提示词：全自动实现 Linux Codex CLI 全局双子 Agent
 
-请在当前仓库中实现一套**可复现、可安装、可检查、可卸载，并且不会破坏用户现有 Codex 配置**的方案。
+请在当前仓库中直接完成一套**可复现、可安装、可检查、可卸载，并且不会破坏用户现有 Codex 配置**的实现。
 
-最终目标是：
+不要只给方案、步骤或伪代码。你要直接创建并完善仓库中的脚本、模板、示例和 README，运行当前环境能够执行的非破坏性验证，直到仓库达到“用户只需要填写 1 个 API Key 和 2 个接入点 ID，就能一键安装”的状态。
+
+最终架构：
 
 ```text
 Codex GPT-5.6 / ChatGPT 会员模型作为主 Agent
         ↓ 规划、拆分、调度、复核、最终测试
-DeepSeek V4 Flash 子 Agent
+DeepSeek V4 Flash 全局子 Agent
         ↓ 代码搜索、日志分析、依赖定位、只读检查
-GLM-5.2 子 Agent
+GLM-5.2 全局子 Agent
         ↓ 边界明确的代码实现、测试、配置和局部修复
 Codex GPT-5.6 主 Agent
         ↓ 审查 diff、重新测试、决定是否接受修改
 ```
 
-不要只输出说明或伪代码。请在当前仓库中实际创建脚本、模板和文档，并运行当前环境允许执行的非破坏性验证。
+---
+
+## 一、执行方式：不要在实现过程中向用户索要密钥
+
+本任务分成两个阶段。
+
+### 阶段 A：你现在必须自动完成
+
+在没有真实 API Key 和接入点 ID 的情况下，直接完成：
+
+1. 仓库结构设计；
+2. 全部脚本实现；
+3. 全部 Agent 模板；
+4. Codex Provider 配置合并逻辑；
+5. 安装、检查和卸载逻辑；
+6. 本地用户配置文件模板；
+7. README 和可复制测试提示词；
+8. Shell、Python、TOML 模板和幂等逻辑的静态验证；
+9. 不需要真实 API 的 dry-run 验证；
+10. 明确记录哪些在线验证因为没有真实凭证而未执行。
+
+**不要因为缺少以下三个值而停下来询问用户：**
+
+```text
+ARK_API_KEY
+ARK_V4FLASH_ENDPOINT_ID
+ARK_GLM52_ENDPOINT_ID
+```
+
+仓库模板中统一使用明确占位符。
+
+### 阶段 B：实现完成后用户才操作
+
+用户最后只需要：
+
+1. 复制并编辑一个被 `.gitignore` 忽略的本地配置文件；
+2. 填写 1 个火山方舟 API Key；
+3. 填写 DeepSeek V4 Flash 和 GLM-5.2 的两个 `ep-...` 接入点 ID；
+4. 运行一条安装命令；
+5. 运行一条检查命令；
+6. 重启或重新打开 Codex CLI。
+
+完成报告中只能把这几步留给用户，不得把仓库实现工作继续甩给用户。
 
 ---
 
-## 一、最重要的安装范围
+## 二、最重要的安装范围
 
-这里所说的“系统级别”是指：
+这里的“系统级别”准确含义是：
 
-> 安装到当前 Linux 用户的全局 Codex 配置中，使两个子 Agent 能在该用户的任意项目中使用。
+> 安装到当前 Linux 用户的全局 Codex 配置中，使两个自定义子 Agent 能在该用户的任意项目中使用。
 
-安装目标必须是：
+最终生效位置必须是：
 
 ```text
 ~/.codex/config.toml
 ~/.codex/agents/ark-v4flash-explorer.toml
 ~/.codex/agents/ark-glm52-worker.toml
+```
+
+允许创建当前用户私有辅助文件，例如：
+
+```text
+~/.config/codex-ark-subagents/env
+~/.local/bin/codex-ark
 ```
 
 严禁把最终 Agent 安装到：
@@ -42,20 +93,20 @@ Codex GPT-5.6 主 Agent
 任意业务项目/.codex/config.toml
 ```
 
-仓库中可以保存模板和安装脚本，但最终生效位置只能是当前用户的 `~/.codex/`。
+仓库中只能保存模板和安装工具，最终生效配置必须位于当前用户的 `~/.codex/`。
 
-不要使用 `sudo`，不要修改 `/etc`，不要尝试给其他 Linux 用户安装。
+不要使用 `sudo`，不要修改 `/etc`，不要给其他 Linux 用户安装。
 
 ---
 
-## 二、已确定的技术方案
+## 三、已经确定的技术方案
 
-用户已经在火山方舟北京地域创建并授权了两个自定义推理接入点：
+用户已经在火山方舟北京地域创建并授权：
 
-1. DeepSeek V4 Flash 接入点；
-2. GLM-5.2 接入点。
+1. DeepSeek V4 Flash 自定义推理接入点；
+2. GLM-5.2 自定义推理接入点。
 
-二者满足以下关系：
+二者满足：
 
 ```text
 同一个火山方舟账号
@@ -66,7 +117,7 @@ Codex GPT-5.6 主 Agent
 不同的 ep-... 接入点 ID
 ```
 
-统一 Provider：
+统一 Codex Provider 的目标语义：
 
 ```toml
 [model_providers.ark_reward]
@@ -83,21 +134,21 @@ stream_idle_timeout_ms = 300000
 
 ```text
 DeepSeek 官方 API
+DEEPSEEK_API_KEY
 本地 Responses 转换代理
 localhost:8787
 Python 协议转换服务
-DEEPSEEK_API_KEY
 systemd 代理服务
 Chat Completions 转 Responses
 ```
 
-火山方舟已经提供原生 Responses API，因此不需要任何本地代理。
+火山方舟已经提供原生 Responses API，不需要本地协议代理。
 
 ---
 
-## 三、开始前必须核对
+## 四、开始前必须核对最新官方资料
 
-开始实现前，请查阅执行时最新的官方资料：
+实现前查阅执行时最新资料：
 
 - Codex 配置参考：
   - https://developers.openai.com/codex/config-reference
@@ -107,40 +158,16 @@ Chat Completions 转 Responses
 - 火山方舟 Responses API：
   - https://www.volcengine.com/docs/82379/1795150
 
-必须确认当前 Codex 版本实际支持的字段名称和取值。
+必须核对当前 Codex CLI 版本及配置 schema，确认：
 
-如果下面示例中的某个字段已变化，应以当前官方文档和本机 Codex 配置 schema 为准进行修正，但不得改变本提示词规定的总体架构和权限边界。
+1. 自定义 Provider 的字段名称；
+2. `wire_api = "responses"` 的当前要求；
+3. 自定义 Agent 文件格式；
+4. 沙箱和审批字段当前有效取值；
+5. 用户级 Agent 的发现目录；
+6. 多 Agent 并发配置字段。
 
----
-
-## 四、输入参数和密钥
-
-安装方案需要使用三个用户输入：
-
-```bash
-ARK_API_KEY
-ARK_V4FLASH_ENDPOINT_ID
-ARK_GLM52_ENDPOINT_ID
-```
-
-示例：
-
-```bash
-export ARK_API_KEY="用户自己的火山方舟 API Key"
-export ARK_V4FLASH_ENDPOINT_ID="ep-xxxxxxxxxxxxxxxx"
-export ARK_GLM52_ENDPOINT_ID="ep-yyyyyyyyyyyyyyyy"
-```
-
-要求：
-
-1. 不得把真实 API Key 写入仓库；
-2. 不得把真实 API Key 写进 `~/.codex/config.toml`；
-3. Provider 只能引用环境变量名 `ARK_API_KEY`；
-4. 安装脚本不得打印完整 API Key；
-5. 接入点 ID 可以作为安装参数写入 Agent 文件，但仓库模板中必须使用占位符；
-6. 安装脚本必须检查两个接入点 ID 都以 `ep-` 开头；
-7. 安装脚本必须防止把同一个接入点 ID 同时配置给两个 Agent；
-8. README 必须说明如何安全地长期提供 `ARK_API_KEY`，但不得默认修改用户的 shell 配置文件。
+示例字段若已变化，应按当前官方文档和本机 schema 修正，但不得改变本提示词规定的架构、全局安装范围和权限边界。
 
 ---
 
@@ -150,10 +177,14 @@ export ARK_GLM52_ENDPOINT_ID="ep-yyyyyyyyyyyyyyyy"
 
 ```text
 README.md
+PROMPT.md
 .gitignore
+user-config.env.example
 scripts/install.sh
 scripts/check.sh
 scripts/uninstall.sh
+scripts/render_agents.py
+scripts/merge_codex_config.py
 templates/config.fragment.toml
 templates/ark-v4flash-explorer.toml
 templates/ark-glm52-worker.toml
@@ -161,19 +192,114 @@ examples/test-readonly.md
 examples/test-development.md
 ```
 
-可以增加少量必要辅助脚本，但不要引入 Docker、数据库、Web 服务、MCP Server 或本地代理。
+允许增加少量必要测试或辅助文件，但不要引入：
+
+```text
+Docker
+数据库
+Web 服务
+MCP Server
+本地模型代理
+常驻后台服务
+```
+
+### 用户私有配置文件
+
+仓库必须提供：
+
+```text
+user-config.env.example
+```
+
+内容至少为：
+
+```bash
+ARK_API_KEY=""
+ARK_V4FLASH_ENDPOINT_ID=""
+ARK_GLM52_ENDPOINT_ID=""
+```
+
+README 要求用户复制为：
+
+```text
+user-config.env
+```
+
+并填写真实值。`.gitignore` 必须忽略：
+
+```text
+user-config.env
+*.local.env
+.env
+.env.*
+```
+
+但不能忽略 `user-config.env.example`。
+
+安装脚本默认从仓库根目录的 `user-config.env` 读取，也应允许使用：
+
+```bash
+./scripts/install.sh --config /path/to/private.env
+```
 
 ---
 
-## 六、全局 Provider 配置要求
+## 六、输入校验和密钥安全
 
-安装脚本需要把以下 Provider 以安全、幂等方式合并到：
+安装时读取：
+
+```text
+ARK_API_KEY
+ARK_V4FLASH_ENDPOINT_ID
+ARK_GLM52_ENDPOINT_ID
+```
+
+必须做到：
+
+1. 不把真实 API Key 写入 Git；
+2. 不把真实 API Key 写进 `~/.codex/config.toml`；
+3. Provider 只引用环境变量名 `ARK_API_KEY`；
+4. 不在终端输出完整 Key；
+5. 接入点 ID 必须以 `ep-` 开头；
+6. 两个 Agent 不允许使用同一个接入点 ID；
+7. 空值、占位符、带换行或明显格式错误时立即失败；
+8. 私有环境文件复制到 `~/.config/codex-ark-subagents/env` 时权限必须为 `600`；
+9. 生成的 Agent 文件中可以保存接入点 ID，但不能保存 API Key；
+10. 检查脚本只显示 Key 是否存在，不能显示具体值。
+
+为了让用户不必每次手动 `export`，安装脚本应创建：
+
+```text
+~/.local/bin/codex-ark
+```
+
+该包装器只能：
+
+1. 安全加载 `~/.config/codex-ark-subagents/env`；
+2. 导出 `ARK_API_KEY`；
+3. 使用 `exec codex "$@"` 启动用户现有 Codex；
+4. 不修改 Codex 主模型；
+5. 不打印 Key。
+
+README 同时说明：
+
+- 使用 `codex-ark` 最省事；
+- 用户也可以手动导出 `ARK_API_KEY` 后继续使用原来的 `codex` 命令；
+- 如果 `~/.local/bin` 不在 PATH，如何临时或永久加入 PATH。
+
+不得自动修改 `.bashrc`、`.zshrc` 或其他 shell 启动文件。
+
+---
+
+## 七、全局 Provider 配置合并
+
+安装脚本必须安全、幂等地修改：
 
 ```text
 ~/.codex/config.toml
 ```
 
-目标语义：
+目标 Provider：
 
 ```toml
 [model_providers.ark_reward]
@@ -186,7 +312,7 @@ stream_max_retries = 2
 stream_idle_timeout_ms = 300000
 ```
 
-同时需要保证 `[agents]` 至少允许主 Agent 加两个子 Agent：
+并确保多 Agent 配置至少满足当前主线程加两个子线程，例如当前 schema 对应语义：
 
 ```toml
 [agents]
@@ -196,27 +322,28 @@ max_depth = 1
 
 配置合并规则：
 
-1. 修改前创建带时间戳的备份；
-2. 不得覆盖整个 `~/.codex/config.toml`；
-3. 不得修改用户现有顶层 `model`；
-4. 不得修改用户现有顶层 `model_provider`；
-5. 不得修改 ChatGPT 登录配置；
-6. 不得删除其他 Provider、MCP、项目、通知或沙箱配置；
-7. 如果 `[agents]` 已存在，保留其他字段；
-8. 如果用户已有更大的 `max_threads`，保留现值；
-9. 如果用户已有更严格的 `max_depth = 1`，保持不变；
-10. 如果已存在同名 `ark_reward` Provider，先比较内容；
-11. 内容相同则不重复写入；
-12. 内容不同则备份并明确提示用户，再安全更新；
-13. 重复执行安装脚本必须保持幂等。
+1. 修改前创建带时间戳备份；
+2. 不覆盖整个 `config.toml`；
+3. 不修改用户顶层 `model`；
+4. 不修改用户顶层 `model_provider`；
+5. 不修改 ChatGPT 登录；
+6. 不删除其他 Provider、MCP、通知、沙箱或项目配置；
+7. `[agents]` 已存在时保留其他字段；
+8. 已有更大的并发值时保留用户值；
+9. `max_depth` 保持不允许子 Agent 继续无限嵌套的安全值；
+10. 同名 Provider 内容相同则不重复写入；
+11. 同名 Provider 内容冲突时先备份，再明确提示并安全更新；
+12. 重复安装必须幂等；
+13. 合并后必须通过 TOML 解析；
+14. 不能用简单字符串无脑追加造成重复 section。
 
-不要使用简单字符串追加导致重复 TOML section。应使用可靠的 TOML 修改方式，并验证修改后的文件能被解析。
+优先使用一个小型、可审计的 Python 合并工具。可以使用 Python 标准库读取 TOML；如确实需要第三方 TOML 写入库，应安装到本仓库或用户目录的隔离虚拟环境，并在 README 中说明，不得污染系统 Python。
 
 ---
 
-## 七、DeepSeek V4 Flash 全局探索 Agent
+## 八、DeepSeek V4 Flash 全局探索 Agent
 
-仓库模板：
+模板：
 
 ```text
 templates/ark-v4flash-explorer.toml
@@ -228,7 +355,7 @@ templates/ark-v4flash-explorer.toml
 ~/.codex/agents/ark-v4flash-explorer.toml
 ```
 
-至少实现以下语义：
+目标语义：
 
 ```toml
 name = "ark_v4flash_explorer"
@@ -277,13 +404,13 @@ developer_instructions = """
 """
 ```
 
-如果当前 Codex 版本不支持示例中的某个字段，应按官方 schema 修正，但必须保持该 Agent 为 `read-only`。
+即使当前 Codex schema 字段名称有变化，该 Agent 也必须保持只读。
 
 ---
 
-## 八、GLM-5.2 全局开发 Agent
+## 九、GLM-5.2 全局开发 Agent
 
-仓库模板：
+模板：
 
 ```text
 templates/ark-glm52-worker.toml
@@ -295,7 +422,7 @@ templates/ark-glm52-worker.toml
 ~/.codex/agents/ark-glm52-worker.toml
 ```
 
-至少实现以下语义：
+目标语义：
 
 ```toml
 name = "ark_glm52_worker"
@@ -324,291 +451,248 @@ developer_instructions = """
 
 规则：
 1. 每次只处理一个边界明确的任务；
-2. 必须遵守当前项目中的 AGENTS.md 和更具体的项目规则；
+2. 必须遵守当前项目的 AGENTS.md 和更具体规则；
 3. 只修改父 Agent 明确允许的文件；
 4. 不扩展任务范围；
-5. 不擅自改变业务需求、系统架构、鉴权、租户隔离、事务、幂等和安全策略；
+5. 不擅自改变业务需求、整体架构、鉴权、事务、幂等和安全策略；
 6. 不执行 git add、git commit、git push；
-7. 不删除或覆盖其他人的未提交修改；
-8. 必须运行父 Agent 指定的验证命令；
-9. 未运行或失败的测试必须明确说明；
-10. 不读取或输出 API Key、Token、凭证、真实客户数据和未脱敏文件；
-11. 完成后返回修改文件、实现摘要、测试结果、风险和待确认事项；
-12. 最终 diff 审查、修正、提交由 Codex GPT-5.6 主 Agent 负责。
+7. 不删除或覆盖不属于本任务的修改；
+8. 运行父 Agent 指定的验证；
+9. 未运行或失败的测试必须如实说明；
+10. 不读取或输出 API Key、Token、凭证和真实客户数据；
+11. 最终 diff、架构决策、最终测试和提交由 Codex GPT-5.6 主 Agent 负责。
+
+完成后返回：
+- 修改的文件
+- 实现摘要
+- 执行的命令
+- 测试结果
+- 风险和未确认事项
 """
 ```
 
-如果当前 Codex 版本不支持示例中的某个字段，应按官方 schema 修正。
-
-不要把 GLM Agent 改成可以自动提交代码的角色。
+如果当前 Codex schema 不支持示例审批字段，按官方 schema 使用最接近且安全的值。不得取消“禁止自行提交”和“只能修改指定文件”的边界。
 
 ---
 
-## 九、安装脚本要求
+## 十、安装脚本
 
 `scripts/install.sh` 必须：
 
 1. 使用 `set -euo pipefail`；
-2. 检查当前系统是 Linux；
-3. 检查 `codex` 命令存在；
-4. 检查 `ARK_API_KEY` 已设置，但不输出值；
-5. 检查两个 Endpoint ID 已提供；
-6. 支持从环境变量读取 Endpoint ID；
-7. 可以额外支持命令行参数，但不得要求用户修改模板；
-8. 创建 `~/.codex/agents/`；
-9. 修改配置前备份 `~/.codex/config.toml`；
-10. 安全合并 Provider 和 `[agents]`；
-11. 用真实 Endpoint ID 替换两个模板中的占位符；
-12. 原子写入两个全局 Agent 文件；
-13. 设置合理文件权限；
-14. 安装后验证 TOML 文件可解析；
-15. 不调用 `sudo`；
-16. 不创建项目级 `.codex`；
-17. 不修改主模型；
-18. 不自动执行 `git push`；
-19. 输出下一步检查命令；
-20. 重复安装不产生重复配置。
+2. 支持 `--config` 和 `--dry-run`；
+3. 默认读取 `./user-config.env`；
+4. 检查 Linux、`codex`、Python 和必要依赖；
+5. 不使用 sudo；
+6. 验证三个用户输入；
+7. 创建所有目标目录；
+8. 修改前备份 `~/.codex/config.toml`；
+9. 安全合并 Provider 和 Agent 并发配置；
+10. 渲染两个 Agent 模板中的接入点 ID；
+11. 安装到 `~/.codex/agents/`；
+12. 私有环境文件权限设为 `600`；
+13. 创建 `~/.local/bin/codex-ark`；
+14. 不修改主 Agent 模型和登录；
+15. 安装结束后自动运行本地静态检查；
+16. 有真实凭证时允许执行在线连通性检查；
+17. 重复执行保持幂等；
+18. 失败时尽可能不留下半安装状态，并给出备份位置和恢复方法。
 
-建议支持：
+`--dry-run` 必须不修改用户目录，只显示将执行的动作，并且不能显示完整 API Key。
+
+---
+
+## 十一、检查脚本
+
+`scripts/check.sh` 至少支持：
 
 ```bash
-ARK_API_KEY=... \
-ARK_V4FLASH_ENDPOINT_ID=ep-... \
-ARK_GLM52_ENDPOINT_ID=ep-... \
-./scripts/install.sh
+./scripts/check.sh --config user-config.env
+./scripts/check.sh --offline
 ```
 
----
-
-## 十、检查脚本要求
-
-`scripts/check.sh` 至少检查：
+离线检查：
 
 1. `codex --version`；
-2. `ARK_API_KEY` 是否存在，但不得输出值；
-3. 两个 Endpoint ID 是否可获得；
-4. `~/.codex/config.toml` 是否可解析；
-5. `ark_reward` Provider 是否存在且 Base URL 正确；
-6. 主 Codex 顶层 Provider 没有被改成 `ark_reward`；
-7. 两个全局 Agent 文件是否存在；
-8. 两个 Agent 是否引用不同的 Endpoint ID；
-9. V4 Flash Agent 是否为 `read-only`；
-10. GLM Agent 是否为 `workspace-write`；
-11. 对 V4 Flash Endpoint 执行最小非流式 Responses 请求；
-12. 对 GLM-5.2 Endpoint 执行最小非流式 Responses 请求；
-13. 分别执行 SSE 流式 Responses 请求；
-14. 尽可能验证一次简单 Function Calling；
-15. 失败时输出明确原因和修复建议；
-16. 返回正确的 shell exit code。
+2. 仓库文件是否完整；
+3. Shell 语法；
+4. Python 脚本语法；
+5. TOML 模板可解析；
+6. 占位符是否正确；
+7. `~/.codex/config.toml` 可解析；
+8. Provider 是否存在且没有改写主 Provider；
+9. 两个全局 Agent 是否存在；
+10. 两个 Agent 的 Endpoint ID 不同；
+11. V4 Flash Agent 保持只读；
+12. GLM Agent 不允许自行提交；
+13. 环境文件权限是否为 `600`；
+14. `codex-ark` 包装器是否存在且不泄露 Key。
 
-检查结果必须区分：
+在线检查：
 
-```text
-静态配置通过
-V4 Flash 普通 Responses 通过/失败
-V4 Flash SSE 通过/失败
-GLM-5.2 普通 Responses 通过/失败
-GLM-5.2 SSE 通过/失败
-Function Calling 通过/失败/未验证
-Codex 原生子 Agent 调度尚需人工验证
-```
+1. `ARK_API_KEY` 是否可加载，但不显示值；
+2. V4 Flash 接入点最小非流式 Responses 请求；
+3. GLM-5.2 接入点最小非流式 Responses 请求；
+4. 两个接入点的 SSE 流式请求；
+5. 至少一次接近 Codex 工具调用格式的 Function Calling 验证；
+6. 清晰区分普通文本、SSE、Function Calling 和 Codex 原生子 Agent 尚未验证的状态；
+7. 返回正确退出码。
 
-不要把一次普通文本成功当作完整 Codex 兼容性验证。
+不得把“普通文本返回成功”描述成“Codex 子 Agent 完整兼容已验证”。
 
 ---
 
-## 十一、卸载脚本要求
+## 十二、卸载脚本
 
 `scripts/uninstall.sh` 必须：
 
 1. 使用 `set -euo pipefail`；
-2. 修改前备份 `~/.codex/config.toml`；
-3. 只删除：
-   - `~/.codex/agents/ark-v4flash-explorer.toml`
-   - `~/.codex/agents/ark-glm52-worker.toml`
-   - 本方案添加的 `model_providers.ark_reward`
-4. 不删除整个 `~/.codex`；
-5. 不删除其他 Agent；
-6. 不删除其他 Provider；
-7. 不修改用户主模型；
-8. 不删除 `ARK_API_KEY`；
-9. 对文件不存在和重复卸载保持幂等；
-10. 卸载后验证剩余 TOML 仍可解析。
-
-对于 `[agents]` 中的 `max_threads` 和 `max_depth`：
-
-- 如果无法可靠判断是否由本方案首次添加，不要擅自删除；
-- README 中说明这两个通用字段可能保留。
+2. 支持 `--dry-run`；
+3. 修改前备份 `~/.codex/config.toml`；
+4. 只删除本方案安装的两个 Agent；
+5. 只删除 `ark_reward` Provider；
+6. 只删除本方案创建的 `~/.config/codex-ark-subagents/`；
+7. 只删除本方案创建的 `~/.local/bin/codex-ark`；
+8. 不删除整个 `~/.codex`；
+9. 不影响 GPT-5.6 主 Agent；
+10. 不影响其他 Provider、Agent、MCP 和项目配置；
+11. 重复卸载保持幂等；
+12. 卸载后再次验证 TOML 可解析。
 
 ---
 
-## 十二、README 要求
+## 十三、README 要求
 
-README 使用中文，至少说明：
+README 使用中文，至少包括：
 
-1. 这套方案解决什么问题；
-2. 架构图；
-3. 为什么只需要一个 Provider 和一个 API Key；
-4. 为什么需要两个不同 Endpoint ID；
-5. 全局安装和项目级安装的区别；
-6. 最终文件安装到哪里；
-7. 前置条件；
-8. 如何设置三个环境变量；
-9. 一键安装；
-10. 一键检查；
-11. 如何卸载；
-12. 如何在任意项目调用两个全局 Agent；
-13. 如何确认主 Agent 仍使用 GPT-5.6；
-14. 如何在火山控制台确认两个子 Agent 的调用量；
-15. Reward Plan 数据授权的注意事项；
-16. 不要向授权接入点发送密钥、真实客户数据、未脱敏日志和受限私有代码；
-17. Responses、SSE、Function Calling 的验证状态；
-18. 已知限制；
-19. 常见错误：
-   - 401/403；
-   - Endpoint ID 不存在；
-   - Endpoint 未授权；
-   - `/responses` 请求失败；
-   - SSE 中断；
-   - 工具调用格式不兼容；
-   - Codex 找不到自定义 Agent；
-   - 子 Agent 意外继承主 Provider；
-   - GLM Agent 无法写入工作区；
-20. 如何安全回滚。
+1. 架构图；
+2. 为什么一个 Provider 可以服务两个接入点；
+3. 为什么不需要本地代理；
+4. 系统级/用户级安装范围；
+5. 明确说明不是项目级 Agent；
+6. 前置条件；
+7. 用户最后只需执行的最少步骤；
+8. 如何复制并编辑 `user-config.env`；
+9. 如何安装、检查、启动 Codex；
+10. `codex-ark` 和原始 `codex` 的区别；
+11. 如何确认两个子 Agent 分别走了正确接入点；
+12. 如何查看火山方舟用量和 Reward Plan 统计；
+13. 如何调用只读探索 Agent；
+14. 如何让 GLM 开发 Agent 修改代码；
+15. 为什么最终仍需 GPT-5.6 审查 diff 和重跑测试；
+16. 如何卸载和回滚；
+17. 常见错误及处理：401/403、Endpoint 不存在、Responses 404、SSE 失败、Function Calling 不兼容、Agent 未被发现、环境变量缺失、`~/.local/bin` 不在 PATH；
+18. 数据授权和敏感信息风险；
+19. 已验证版本矩阵；
+20. 已知限制。
 
-必须明确：
+README 开头提供最短路径：
 
-```text
-GPT-5.6 主 Agent 仍然会消耗 Codex/ChatGPT 额度用于规划、调度、复核和最终回答。
-V4 Flash 与 GLM-5.2 的调用走火山方舟 API。
-并行子 Agent 越多，火山 Token 消耗越高。
-弱模型返工可能抵消节省，因此只下放边界明确的任务。
+```bash
+cp user-config.env.example user-config.env
+nano user-config.env
+chmod 600 user-config.env
+./scripts/install.sh --config user-config.env
+./scripts/check.sh --config user-config.env
+codex-ark
 ```
 
 ---
 
-## 十三、示例提示词
+## 十四、示例测试提示词
 
-### `examples/test-readonly.md`
-
-提供一个可以直接粘贴到 Codex CLI 的测试提示词：
+`examples/test-readonly.md` 提供可直接粘贴到 Codex 的测试：
 
 ```text
 保持当前 GPT-5.6 主 Agent，不要切换主模型。
 
 调用 ark_v4flash_explorer 子 Agent，只读检查当前仓库：
-1. 列出顶层目录及用途；
-2. 找出 README、TODO、AGENTS.md 或主要任务入口；
-3. 指出一个需要主 Agent 进一步确认的风险；
+1. 列出顶层目录和用途；
+2. 找出 README、TODO 或任务入口；
+3. 指出一个需要主 Agent 继续确认的风险；
 4. 不修改任何文件。
 
-等待子 Agent 完成后，由主 Agent核对其文件路径和结论是否真实，
-并说明本次子任务是否使用了 ark_reward Provider。
+等待子 Agent 完成后，由 GPT-5.6 主 Agent 复核文件路径和结论，
+并说明子任务是否由 ark_reward Provider 执行。
 ```
 
-### `examples/test-development.md`
-
-提供一个安全的双 Agent 测试提示词：
+`examples/test-development.md` 提供可直接粘贴的开发测试：
 
 ```text
-保持当前 GPT-5.6 主 Agent，不要切换主模型。
+保持当前 GPT-5.6 主 Agent，负责目标理解、拆分、审查和最终测试。
 
-先调用 ark_v4flash_explorer 子 Agent，只读分析当前仓库中一个边界明确的小任务，
-返回相关文件、现状、风险和建议验证方式。
+先调用 ark_v4flash_explorer，只读定位当前最小待办任务、相关文件和风险。
+然后调用 ark_glm52_worker，只完成主 Agent 明确允许的最小修改，禁止提交代码。
 
-主 Agent 审核探索结果后，再调用 ark_glm52_worker 子 Agent：
-1. 只完成主 Agent 明确指定的小任务；
-2. 只修改允许的文件；
-3. 不执行 git add、commit、push；
-4. 运行指定测试；
-5. 如实报告结果。
-
-两个子 Agent 完成后，由 GPT-5.6 主 Agent：
+子 Agent 完成后，主 Agent必须：
 1. 检查完整 git diff；
-2. 检查是否超出范围；
+2. 检查是否超出任务范围；
 3. 重新运行真实测试；
-4. 修复残留问题；
-5. 决定是否接受修改。
+4. 修正残留问题；
+5. 最终汇报两个子 Agent 分别完成了什么。
 ```
 
 ---
 
-## 十四、实际验证要求
+## 十五、你现在必须执行的验证
 
-实现完成后按顺序验证：
+在没有真实凭证时，至少实际执行：
 
-### 静态验证
+1. `bash -n` 检查所有 Shell 脚本；
+2. Python 编译检查；
+3. TOML 模板解析；
+4. 使用临时 HOME 的安装 dry-run；
+5. 使用临时 HOME 和虚构但格式有效的 Endpoint ID 做离线安装；
+6. 重复安装幂等验证；
+7. 卸载与重复卸载验证；
+8. 验证不会创建项目级 `.codex/agents/`；
+9. 验证不会覆盖主模型配置；
+10. 验证 `.gitignore` 可以拦截 `user-config.env`；
+11. 验证日志不会输出完整测试 Key。
 
-- Shell 脚本语法；
-- TOML 模板格式；
-- 配置合并逻辑；
-- 重复安装；
-- 卸载；
-- 重复卸载；
-- `.gitignore` 不遗漏密钥和临时文件。
-
-### API 验证
-
-在环境变量可用时验证：
-
-- V4 Flash 非流式 Responses；
-- V4 Flash SSE；
-- GLM-5.2 非流式 Responses；
-- GLM-5.2 SSE；
-- 简单 Function Calling。
-
-### Codex CLI 人工验证
-
-提供明确步骤，让用户确认：
-
-1. Codex 显示创建了 `ark_v4flash_explorer`；
-2. Codex 显示创建了 `ark_glm52_worker`；
-3. 主线程仍为原有 GPT-5.6 / ChatGPT 登录；
-4. 火山控制台两个接入点分别出现调用量；
-5. V4 Flash Agent 没有修改文件；
-6. GLM Agent 能在受控范围内修改文件；
-7. 主 Agent 可以审查结果。
-
-未实际执行的验证必须明确写“未验证”，不得声称成功。
+不得向真实火山 API 发送虚构凭证。没有真实凭证时，把在线检查标记为“待用户填写后执行”。
 
 ---
 
-## 十五、安全要求
+## 十六、安全边界
 
 必须遵守：
 
 1. 不提交真实 API Key；
 2. 不读取或打印 Codex 登录令牌；
 3. 不覆盖整个 `~/.codex/config.toml`；
-4. 不改变主 Agent 默认 Provider；
-5. 不创建本地代理；
-6. 不开放任何监听端口；
-7. 不自动修改 shell 启动文件；
-8. 不自动执行 `git push`；
-9. 不把 Endpoint ID 当成秘密，但不要在模板中写死用户真实 ID；
-10. 不声称未完成的验证已经成功；
-11. 对 Reward Plan 已授权接入点，只发送用户明确允许的数据；
-12. 安装脚本发现疑似错误配置时应停止，而不是强行覆盖。
+4. 不修改主 Agent 默认 Provider；
+5. 不自动修改 shell rc 文件；
+6. 不创建公网服务；
+7. 不记录完整 API 请求正文；
+8. 不自动执行 git push；
+9. 不声称未完成的在线验证已经成功；
+10. Reward Plan 接入点不得用于密钥、真实客户数据、未脱敏日志或不允许外传的代码。
 
 ---
 
-## 十六、完成报告
+## 十七、完成标准和最终报告
 
-完成实现后，请输出：
+只有满足以下条件才算完成：
+
+1. 仓库文件已经实际创建；
+2. 安装脚本能够把配置安装到当前用户全局 `~/.codex/`；
+3. 仓库中没有项目级生效 Agent；
+4. 用户只需填写一个本地配置文件；
+5. 用户只需运行安装、检查和启动命令；
+6. 不需要用户手工编写 TOML；
+7. 不需要用户手工合并 `~/.codex/config.toml`；
+8. 不需要用户自己实现脚本；
+9. 静态和离线测试已经真实运行；
+10. 未执行的在线验证已明确标记。
+
+完成后只向用户汇报：
 
 1. 创建和修改的文件；
-2. 全局安装目标；
-3. Provider 配置方式；
-4. 两个 Agent 的职责和权限；
-5. 安装命令；
-6. 检查命令；
-7. 卸载命令；
-8. 已运行的验证及真实结果；
-9. 未验证内容；
-10. 已知限制；
-11. 用户接下来最少需要执行的命令；
-12. 如何确认两个子 Agent 确实分别调用了对应火山接入点；
-13. 如何确认 GPT-5.6 主 Agent 没有被替换；
-14. 如何安全回滚。
+2. 实际运行的验证及结果；
+3. 未验证内容；
+4. 用户最后需要执行的最少命令；
+5. 如何确认两个子 Agent 确实走火山方舟接入点；
+6. 如何安全回滚。
 
-不要只给建议。请把当前仓库实现成用户克隆后能够按照 README 安装的工具。
+不要在完成前停下来让用户补充 API Key。不要只输出建议。直接完成仓库实现。
